@@ -253,7 +253,7 @@ nav {
 
   <div class="blob-field" id="blobField">
     <button class="blob-item" id="item-thesis" data-project="thesis" style="width:210px;height:210px">
-      <div class="blob-shape b1" id="shape-thesis"><span class="blob-icon" style="font-size:52px">🎛️</span></div>
+      <div class="blob-shape b1" id="shape-thesis" style="background-image:url('dj.jpg'); background-size:cover; background-position:center;"></div>
     </button>
 
     <button class="blob-item" id="item-berlin" data-project="berlin" style="width:190px;height:190px">
@@ -290,7 +290,7 @@ nav {
   <div class="page-hero">
     <div class="page-category">Featured · M.S. Thesis · NYU Steinhardt · 2025</div>
     <h1 class="page-title">DJing in Latent Space</h1>
-    <div class="page-img-placeholder">🎛️</div>
+    <div class="page-img-placeholder" style="background-image:url('dj.jpg'); background-size:cover; background-position:center;"></div>
   </div>
   <div class="page-body-grid">
     <div class="page-body">
@@ -519,8 +519,9 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closePage();
     });
   });
 
-  const MAX_SPEED = 0.16;
-  const BOOST_SPEED = 1.3;
+  const MAX_SPEED = 0.28;
+  const BOOST_SPEED = 0.55;
+  const MAX_FLING_SPEED = 0.8; // cap how much a hard, fast flick can inject
 
   // cursor is treated like an extra, immovable blob for both collision push and squish
   const cursor = { x: 0, y: 0, r: 55, active: false };
@@ -540,8 +541,10 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closePage();
   let dragBlob = null;
   let dragOffsetX = 0, dragOffsetY = 0;
   let dragStart = { x: 0, y: 0 };
-  let dragMoved = 0;
-  const CLICK_THRESHOLD = 6; // px of movement below which it counts as a click
+  let dragStartTime = 0;
+  let maxDrift = 0; // largest net distance from the press point, not cumulative jitter
+  const CLICK_DIST_THRESHOLD = 14;  // px of net movement below which it counts as a click
+  const CLICK_TIME_THRESHOLD = 300; // ms -- a quick press-release is a click even with a little drift
 
   blobs.forEach(b => {
     if (!b.itemEl) return;
@@ -551,7 +554,8 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closePage();
       dragOffsetX = p.x - b.x;
       dragOffsetY = p.y - b.y;
       dragStart = { x: p.x, y: p.y };
-      dragMoved = 0;
+      dragStartTime = performance.now();
+      maxDrift = 0;
       b.dragging = true;
       b.vx = 0; b.vy = 0;
       b.prevX = b.x; b.prevY = b.y;
@@ -565,9 +569,12 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closePage();
     const p = fieldPoint(evt);
     const nx = Math.max(dragBlob.r, Math.min(W - dragBlob.r, p.x - dragOffsetX));
     const ny = Math.max(dragBlob.r, Math.min(H - dragBlob.r, p.y - dragOffsetY));
-    dragMoved += Math.hypot(nx - dragBlob.x, ny - dragBlob.y);
     dragBlob.x = nx;
     dragBlob.y = ny;
+    // track net distance from the original press point (raw pointer position,
+    // not the clamped blob position) so edge-clamping can't mask real drags
+    const drift = Math.hypot(p.x - dragStart.x, p.y - dragStart.y);
+    if (drift > maxDrift) maxDrift = drift;
   });
 
   window.addEventListener('pointerup', () => {
@@ -576,16 +583,24 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closePage();
     b.itemEl.classList.remove('dragging');
     b.dragging = false;
 
-    const totalMoved = Math.hypot(b.x - dragStart.x, b.y - dragStart.y);
-    if (dragMoved < CLICK_THRESHOLD && totalMoved < CLICK_THRESHOLD) {
+    const elapsed = performance.now() - dragStartTime;
+    const isClick = maxDrift < CLICK_DIST_THRESHOLD ||
+                     (elapsed < CLICK_TIME_THRESHOLD && maxDrift < CLICK_DIST_THRESHOLD * 2.5);
+
+    if (isClick) {
       openPage(b.id); // plain click, no meaningful drag -- open the project
       b.vx = 0; b.vy = 0;
     } else {
       // fling using the last bit of drag motion as velocity
       b.vx = (b.x - b.prevX);
       b.vy = (b.y - b.prevY);
-      const spd = Math.hypot(b.vx, b.vy);
-      if (spd > 0.05) b.boostFrames = 45;
+      let spd = Math.hypot(b.vx, b.vy);
+      if (spd > MAX_FLING_SPEED) { // cap hard, fast flicks so releases don't overshoot
+        b.vx = (b.vx / spd) * MAX_FLING_SPEED;
+        b.vy = (b.vy / spd) * MAX_FLING_SPEED;
+        spd = MAX_FLING_SPEED;
+      }
+      if (spd > 0.05) b.boostFrames = 30;
     }
     dragBlob = null;
   });
@@ -661,8 +676,8 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closePage();
         if (b.itemEl) b.itemEl.style.transform = `translate(${b.x - b.r}px, ${b.y - b.r}px)`;
         if (b.shapeEl) {
           const deg = b.squishAngle * 180 / Math.PI;
-          const compress = 1 - b.squishMag * 0.36;
-          const expand = 1 + b.squishMag * 0.3;
+          const compress = 1 - b.squishMag * 0.24;
+          const expand = 1 + b.squishMag * 0.2;
           b.shapeEl.style.transform = `rotate(${deg}deg) scale(${compress}, ${expand}) rotate(${-deg}deg)`;
         }
         b.prevX = b.x; b.prevY = b.y;
@@ -670,14 +685,14 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closePage();
       }
 
       // gentle random drift so paths stay organic, not orbital
-      if (Math.random() < 0.01) {
-        b.vx += (Math.random() - 0.5) * 0.04;
-        b.vy += (Math.random() - 0.5) * 0.04;
+      if (Math.random() < 0.018) {
+        b.vx += (Math.random() - 0.5) * 0.06;
+        b.vy += (Math.random() - 0.5) * 0.06;
       }
 
       // light damping keeps energy from building up indefinitely, but keeps most of the bounce
-      b.vx *= 0.999;
-      b.vy *= 0.999;
+      b.vx *= 0.9985;
+      b.vy *= 0.9985;
 
       const cap = b.boostFrames > 0 ? BOOST_SPEED : MAX_SPEED;
       if (b.boostFrames > 0) b.boostFrames--;
@@ -688,8 +703,22 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closePage();
         b.vy = (b.vy / speed) * cap;
       }
 
-      b.x += b.vx;
-      b.y += b.vy;
+      // ease speed down as the cursor gets close, so blobs feel calmer
+      // (and easier to aim at) right where you're pointing -- momentum
+      // itself (b.vx/b.vy) is untouched, so speed recovers once you move away
+      let speedScale = 1;
+      if (cursor.active) {
+        const dx = cursor.x - b.x, dy = cursor.y - b.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 0.0001;
+        const slowZone = (b.r + cursor.r) * 2;
+        if (dist < slowZone) {
+          const closeness = Math.max(0, Math.min(1, (slowZone - dist) / slowZone));
+          speedScale = 1 - closeness * 0.75; // up to 75% slower right next to the cursor
+        }
+      }
+
+      b.x += b.vx * speedScale;
+      b.y += b.vy * speedScale;
 
       if (b.x - b.r < 0) { b.x = b.r; b.vx = Math.abs(b.vx); }
       if (b.x + b.r > W) { b.x = W - b.r; b.vx = -Math.abs(b.vx); }
@@ -701,8 +730,8 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closePage();
       }
       if (b.shapeEl) {
         const deg = b.squishAngle * 180 / Math.PI;
-        const compress = 1 - b.squishMag * 0.36;
-        const expand = 1 + b.squishMag * 0.3;
+        const compress = 1 - b.squishMag * 0.24;
+        const expand = 1 + b.squishMag * 0.2;
         b.shapeEl.style.transform =
           `rotate(${deg}deg) scale(${compress}, ${expand}) rotate(${-deg}deg)`;
       }
