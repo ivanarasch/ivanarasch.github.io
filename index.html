@@ -162,16 +162,16 @@ a { color: inherit; text-decoration: none; }
   50% { border-radius: 41% 59% 50% 50% / 55% 45% 85% 15%; }
 }
 
-.blob-shape.b1 { background: #d6d6d6; border-radius: 38% 62% 68% 32% / 48% 36% 64% 52%; animation: subtle_b1 18s ease-in-out infinite; }
-.blob-shape.b2 { background: #dedede; border-radius: 58% 42% 34% 66% / 30% 65% 35% 70%; animation: subtle_b2 21s ease-in-out infinite reverse; }
-.blob-shape.b3 { background: #d2d2d2; border-radius: 43% 57% 60% 40% / 60% 40% 60% 40%; animation: subtle_b3 16s ease-in-out infinite; }
-.blob-shape.b4 { background: #e2e2e2; border-radius: 68% 32% 26% 74% / 65% 28% 72% 35%; animation: subtle_b4 19s ease-in-out infinite reverse; }
-.blob-shape.b5 { background: #d8d8d8; border-radius: 26% 74% 65% 35% / 70% 30% 70% 30%; animation: subtle_b5 22s ease-in-out infinite; }
-.blob-shape.b6 { background: #dadada; border-radius: 28% 72% 65% 35% / 72% 28% 65% 35%; animation: subtle_b6 17s ease-in-out infinite reverse; }
-.blob-shape.b7 { background: #d4d4d4; border-radius: 70% 30% 40% 60% / 40% 60% 26% 74%; animation: subtle_b7 20s ease-in-out infinite; }
-.blob-shape.b8 { background: #d0d0d0; border-radius: 28% 72% 58% 42% / 35% 68% 32% 65%; animation: subtle_b8 18.5s ease-in-out infinite reverse; }
-.blob-shape.b9 { background: #d6d6d6; border-radius: 72% 28% 30% 70% / 26% 70% 35% 74%; animation: subtle_b9 21.5s ease-in-out infinite; }
-.blob-shape.b10 { background: #dcdcdc; border-radius: 26% 74% 65% 35% / 70% 30% 70% 30%; animation: subtle_b10 15.5s ease-in-out infinite reverse; }
+.blob-shape.b1 { background: #d6d6d6; border-radius: 38% 62% 68% 32% / 48% 36% 64% 52%; }
+.blob-shape.b2 { background: #dedede; border-radius: 58% 42% 34% 66% / 30% 65% 35% 70%; }
+.blob-shape.b3 { background: #d2d2d2; border-radius: 43% 57% 60% 40% / 60% 40% 60% 40%; }
+.blob-shape.b4 { background: #e2e2e2; border-radius: 68% 32% 26% 74% / 65% 28% 72% 35%; }
+.blob-shape.b5 { background: #d8d8d8; border-radius: 26% 74% 65% 35% / 70% 30% 70% 30%; }
+.blob-shape.b6 { background: #dadada; border-radius: 28% 72% 65% 35% / 72% 28% 65% 35%; }
+.blob-shape.b7 { background: #d4d4d4; border-radius: 70% 30% 40% 60% / 40% 60% 26% 74%; }
+.blob-shape.b8 { background: #d0d0d0; border-radius: 28% 72% 58% 42% / 35% 68% 32% 65%; }
+.blob-shape.b9 { background: #d6d6d6; border-radius: 72% 28% 30% 70% / 26% 70% 35% 74%; }
+.blob-shape.b10 { background: #dcdcdc; border-radius: 26% 74% 65% 35% / 70% 30% 70% 30%; }
 
 @keyframes morphA {
   0%,100% { border-radius: 38% 62% 68% 32% / 48% 36% 64% 52%; }
@@ -727,6 +727,16 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closePage();
   // that a fixed size guarantees on short screens
   const sizeScale = Math.max(0.55, Math.min(1, H / 900));
 
+  // each blob's resting shape (8 border-radius values: 4 horizontal, 4 vertical),
+  // used as the center point that the continuous liquid morph flows around
+  const BASE_RADII = {
+    thesis:          [38, 62, 68, 32, 48, 36, 64, 52],
+    berlin:          [58, 42, 34, 66, 30, 65, 35, 70],
+    linguistic:      [70, 30, 40, 60, 40, 60, 26, 74],
+    entropymixer:    [28, 72, 58, 42, 35, 68, 32, 65],
+    facedisklavier:  [26, 74, 65, 35, 70, 30, 70, 30]
+  };
+
   const blobs = specs.map(s => {
     const r = s.r * sizeScale;
     const angle = Math.random() * Math.PI * 2;
@@ -736,6 +746,11 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closePage();
       s.el.style.width = (r * 2) + 'px';
       s.el.style.height = (r * 2) + 'px';
     }
+    // 8 independent, non-synchronized sine waves (random phase + slightly different
+    // frequency each) so the 8 corner radii drift continuously and never fall into
+    // a repeating "cycling between N preset shapes" pattern -- genuinely liquid
+    const morphPhase = Array.from({ length: 8 }, () => Math.random() * Math.PI * 2);
+    const morphFreq = Array.from({ length: 8 }, () => 0.06 + Math.random() * 0.05);
     return {
       id: s.id,
       r: r,
@@ -748,6 +763,8 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closePage();
       dragging: false,
       boostFrames: 0,
       prevX: 0, prevY: 0, // used to compute fling velocity on release
+      baseR: BASE_RADII[s.id] || [45,55,55,45,45,55,55,45],
+      morphPhase, morphFreq,
       itemEl: document.getElementById('item-' + s.id),
       shapeEl: document.getElementById('shape-' + s.id)
     };
@@ -848,7 +865,21 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closePage();
     dragBlob = null;
   });
 
+  const MORPH_AMP = 20; // how far each corner radius drifts from its resting value
+
+  function applyLiquidMorph(b, t) {
+    if (!b.shapeEl) return;
+    const v = new Array(8);
+    for (let i = 0; i < 8; i++) {
+      const wobble = Math.sin(t * b.morphFreq[i] + b.morphPhase[i]);
+      v[i] = Math.max(8, Math.min(92, b.baseR[i] + wobble * MORPH_AMP));
+    }
+    b.shapeEl.style.borderRadius =
+      `${v[0]}% ${v[1]}% ${v[2]}% ${v[3]}% / ${v[4]}% ${v[5]}% ${v[6]}% ${v[7]}%`;
+  }
+
   function step() {
+    const t = performance.now() / 1000;
     // keep-out zone around the floating nav -- always reserves space for the dropdowns
     // too (even while closed/invisible) so blobs can never end up covering an opened one
     const navRect = navEl.getBoundingClientRect();
@@ -943,6 +974,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closePage();
       if (b.dragging) {
         // position already set by the drag handler; just render it
         if (b.itemEl) b.itemEl.style.transform = `translate(${b.x - b.r}px, ${b.y - b.r}px)`;
+        applyLiquidMorph(b, t);
         if (b.shapeEl) {
           const deg = b.squishAngle * 180 / Math.PI;
           const compress = 1 - b.squishMag * 0.24;
@@ -1076,6 +1108,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closePage();
       if (b.itemEl) {
         b.itemEl.style.transform = `translate(${b.x - b.r}px, ${b.y - b.r}px)`;
       }
+      applyLiquidMorph(b, t);
       if (b.shapeEl) {
         const deg = b.squishAngle * 180 / Math.PI;
         const compress = 1 - b.squishMag * 0.24;
