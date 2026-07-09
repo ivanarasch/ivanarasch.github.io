@@ -683,7 +683,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closePage();
 
   const blobs = specs.map(s => {
     const angle = Math.random() * Math.PI * 2;
-    const speed = 0.07 + Math.random() * 0.05; // slow, calm drift
+    const speed = 0.15 + Math.random() * 0.12;
     return {
       id: s.id,
       r: s.r,
@@ -710,8 +710,8 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closePage();
     });
   });
 
-  const MAX_SPEED = 0.28;
-  const BOOST_SPEED = 0.55;
+  const MAX_SPEED = 0.5;
+  const BOOST_SPEED = 0.7;
   const MAX_FLING_SPEED = 0.8; // cap how much a hard, fast flick can inject
 
   // cursor is treated like an extra, immovable blob for both collision push and squish
@@ -834,7 +834,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closePage();
           const relVx = c.vx - a.vx, relVy = c.vy - a.vy;
           const relDot = relVx * nx + relVy * ny;
           if (relDot < 0) {
-            const restitution = 0.55;
+            const restitution = 0.75;
             const imp = -(1 + restitution) * relDot / 2;
             if (!a.dragging) { a.vx -= imp * nx; a.vy -= imp * ny; }
             if (!c.dragging) { c.vx += imp * nx; c.vy += imp * ny; }
@@ -897,14 +897,14 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closePage();
       }
 
       // gentle random drift so paths stay organic, not orbital
-      if (Math.random() < 0.018) {
-        b.vx += (Math.random() - 0.5) * 0.06;
-        b.vy += (Math.random() - 0.5) * 0.06;
+      if (Math.random() < 0.03) {
+        b.vx += (Math.random() - 0.5) * 0.12;
+        b.vy += (Math.random() - 0.5) * 0.12;
       }
 
       // light damping keeps energy from building up indefinitely, but keeps most of the bounce
-      b.vx *= 0.9985;
-      b.vy *= 0.9985;
+      b.vx *= 0.999;
+      b.vy *= 0.999;
 
       const cap = b.boostFrames > 0 ? BOOST_SPEED : MAX_SPEED;
       if (b.boostFrames > 0) b.boostFrames--;
